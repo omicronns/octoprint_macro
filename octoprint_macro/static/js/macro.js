@@ -18,27 +18,29 @@ $(function () {
             }
             return self.connectionState.isOperational() && self.loginState.isUser();
         }
-        function executeCommands(commands) {
-            var splitCommands = commands.split("\n'");     
-            var len = splitCommands.length;
-            for(var i=0;i<len;i++){
-                self.terminal.command(splitCommands[i]);
-                self.terminal.sendCommand();
-				}
-        }
         self.executeMacro = function () {
-            const macro = this.macro();
-            const commands = macro.split('\n');
-            for (let i = 0; i < commands.length; i += 1) {
-                const command = commands[i];
-                if (!command.includes(';;')) {
-					executeCommands(command);
-                } else if (!command.startsWith(';;')) {
-                    const idx = command.indexOf(';;');
-                    const newCommand = command.slice(0, idx);
-                    executeCommands(newCommand);
+            // command matching regex
+            // (Example output for inputs G0, G1, G28.1, M117 test)
+            // - 1: code including optional subcode. Example: G0, G1, G28.1, M117
+            // - 2: main code only. Example: G0, G1, G28, M117
+            // - 3: sub code, if available. Example: undefined, undefined, .1, undefined
+            // - 4: command parameters incl. leading whitespace, if any. Example: "", "", "", " test"
+            var commandRe = /^(([gmt][0-9]+)(\.[0-9+])?)(\s.*)?/i;
+            var commandsToSend = [];
+            var commandsToProcess = this.macro().split("\n");
+            for(idx in commandsToProcess){
+                var command_line = commandsToProcess[idx];
+                var commandMatch = command_line.match(commandRe);
+                if (commandMatch !== null) {
+                    command_line = commandMatch[1].toUpperCase() + (commandMatch[4] !== undefined ? commandMatch[4] : "");
                 }
+                commandsToSend.push(command_line);
             }
+            var commandsToSend = commandsToSend.filter(function(array_val) {
+                return Boolean(array_val) === true;
+            });
+
+            OctoPrint.control.sendGcode(commandsToSend);
         }
         self.getClass = function () {
             var columns = this.settings.settings.plugins.macro.column();
